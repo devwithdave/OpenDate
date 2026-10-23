@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenDate: Zero-Cost Decentralized Dating</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="theme-color" content="#0d0e10" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- nostr-tools UMD bundle for zero-dependency static execution -->
+  <script src="nostr.bundle.js"></script>
+  <!-- Client-side QR Code engine for mobile sync -->
+  <script src="qrcode.min.js"></script>
+  <!-- Global options taxonomy -->
+  <script src="options.js"></script>
+  <!-- Modular Vanilla Architecture (CORS-free for local file:// & static hosting) -->
+  <script src="js/db.js"></script>
+  <script src="js/crypto.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/relay.js"></script>
+  <script src="js/media.js"></script>
+  <script src="js/dealbreakers.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/moderation.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+
+  <!-- Hidden native password manager hook for silent key backup (iCloud Keychain / Google PM) -->
+  <form id="hidden-pm-form" class="hidden" autocomplete="on">
+    <input type="text" name="username" id="hidden-pm-username" autocomplete="username" />
+    <input type="password" name="password" id="hidden-pm-password" autocomplete="current-password" />
+  </form>
+
+  <div class="app-container">
+
+    <!-- Top Navigation Header -->
+    <header class="top-nav">
+      <div class="brand-group">
+        <span class="brand-logo">OpenDate</span>
+        <button type="button" class="location-pill-btn" id="locationBtn" aria-label="Current Location">
+          <span id="locationLabel">Locating...</span>
+        </button>
+      </div>
+
+      <div class="nav-actions">
+        <button type="button" class="location-pill-btn" id="howItWorksBtn" style="font-size: 11.5px; padding: 6px 10px; min-height: 36px;">
+          How It Works
+        </button>
+      </div>
+    </header>
+
+    <!-- Tab Navigation Bar -->
+    <nav class="tab-bar" role="tablist" aria-label="Application Tabs">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="discover">
+        Discover
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="likes">
+        Likes You <span class="badge-count" id="likesCount">0</span>
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="chats">
+        Chats
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="profile">
+        My Profile
+      </button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="safety">
+        Account Settings
+      </button>
+    </nav>
+
+    <!-- Main View Switcher -->
+    <main class="main-view" id="mainView">
+
+      <!-- TAB 1: DISCOVER CANDIDATES -->
+      <section id="view-discover" class="tab-panel">
+        <div id="discoverContainer">
+          <!-- Populated by js/app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 2: TRANSPARENT LIKES INBOX -->
+      <section id="view-likes" class="tab-panel hidden">
+        <div id="likesContainer">
+          <!-- Populated by js/app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 3: CHATS -->
+      <section id="view-chats" class="tab-panel hidden">
+        <div id="chatsContainer">
+          <!-- Populated by js/app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 4: MY PROFILE EDITOR -->
+      <section id="view-profile" class="tab-panel hidden">
+        <div id="profileContainer">
+          <!-- Populated by js/app.js -->
+        </div>
+      </section>
+
+      <!-- TAB 5: ACCOUNT & SAFETY -->
+      <section id="view-safety" class="tab-panel hidden">
+        <div id="safetyContainer">
+          <!-- Populated by js/app.js -->
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- LOCATION MODAL -->
+  <div id="locationModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="locModalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="locModalTitle" class="modal-title">Set Dating Region</h2>
+        <button type="button" class="modal-close-btn" id="closeLocModal" aria-label="Close dialog">&times;</button>
+      </div>
+      <p style="font-size: 13px; color: var(--ink-secondary);">
+        Discovery uses a coarse 25-mile box. Your exact street address is never published.
+      </p>
+      <div class="form-group">
+        <label for="locInput" class="form-label">City, State or 5-Digit US ZIP</label>
+        <input type="text" id="locInput" class="form-input" placeholder="e.g. Charlottesville, VA or 22903" />
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn btn-secondary" style="flex: 1;" id="gpsBtn">Use GPS Coords</button>
+        <button type="button" class="btn btn-primary" style="flex: 1;" id="saveLocBtn">Search Region</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FIRST-TIME VISITOR LANDING MODAL -->
+  <div id="landingModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="landingTitle">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2 id="landingTitle" class="modal-title">Welcome to OpenDate</h2>
+        <button type="button" class="modal-close-btn" id="closeLandingBtn" aria-label="Close modal">&times;</button>
+      </div>
+      <div style="font-size: 13.5px; line-height: 1.6; color: #d1d5db; display: flex; flex-direction: column; gap: 10px;">
+        <p>
+          <strong>Zero Paywalls:</strong> Commercial apps blur your incoming likes behind monthly fees. OpenDate keeps all incoming likes, intro notes, and profiles visible for free.
+        </p>
+        <p>
+          <strong>No Middleman Server:</strong> You connect directly via your browser. Your account key is stored safely on your device with native biometric backup.
+        </p>
+        <p>
+          <strong>Location Privacy:</strong> Only coarse 25-mile regional grids are indexed. Exact GPS coordinates are never stored or shared.
+        </p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+        <button type="button" class="btn btn-primary" id="startBrowsingBtn">
+          Explore Local Singles
+        </button>
+        <button type="button" class="btn btn-secondary" id="openSyncFromLandingBtn">
+          Sync Existing Account Key
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTRO NOTE LIKE MODAL -->
+  <div id="likeNoteModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="likeModalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="likeModalTitle" class="modal-title">Send Like &amp; Intro Note</h2>
+        <button type="button" class="modal-close-btn" id="closeLikeModal" aria-label="Close dialog">&times;</button>
+      </div>
+      <p id="likeTargetDesc" style="font-size: 13px; color: var(--ink-secondary);">
+        Attaching note to profile
+      </p>
+      <div class="form-group">
+        <label for="likeNoteInput" class="form-label">Your Message (Free, direct, encrypted)</label>
+        <textarea id="likeNoteInput" class="form-textarea" rows="3" placeholder="Say something friendly..."></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn btn-secondary" id="cancelLikeBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmLikeBtn">Send Like</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHARE DATE PLAN MODAL -->
+  <div id="sharePlanModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sharePlanTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="sharePlanTitle" class="modal-title">Share Date Safety Plan</h2>
+        <button type="button" class="modal-close-btn" id="closeSharePlanBtn" aria-label="Close dialog">&times;</button>
+      </div>
+      <p style="font-size: 13px; color: var(--ink-secondary);">
+        Dispatch a structured meetup summary to your trusted friend or family member via SMS or native share sheet.
+      </p>
+      <div class="form-group">
+        <label for="planLocation" class="form-label">Meeting Area / Venue</label>
+        <input type="text" id="planLocation" class="form-input" placeholder="e.g. Mudhouse Coffee on Downtown Mall" />
+      </div>
+      <div class="form-group">
+        <label for="planNotes" class="form-label">Meetup Details &amp; Planned Time</label>
+        <input type="text" id="planNotes" class="form-input" placeholder="e.g. Saturday 2:00 PM - Having tea and walking" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn btn-secondary" id="cancelSharePlanBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmSharePlanBtn">Share With Contact</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORT USER MODAL -->
+  <div id="reportModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="reportModalTitle" class="modal-title">Unmatch or Report Account</h2>
+        <button type="button" class="modal-close-btn" id="closeReportBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- Silent unmatch option (visible in chat, hidden in discover) -->
+      <div id="silentUnmatchSection" style="background: var(--surface-bg); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 12px;">
+        <h3 style="font-size: 13.5px; font-weight: 700; margin: 0 0 4px 0;">Silently Unmatch</h3>
+        <p style="font-size: 12.5px; color: var(--ink-secondary); margin: 0 0 8px 0;">
+          Remove this match and chat history without submitting a community report or blocking their account.
+        </p>
+        <button type="button" class="btn btn-secondary" id="unmatchOnlyBtn" style="font-size: 12px; min-height: 34px;">
+          Unmatch Silently
+        </button>
+      </div>
+
+      <hr id="silentUnmatchDivider" style="border: 0; border-top: 1px solid var(--border-default); margin: 4px 0;" />
+
+      <!-- Community report & block option -->
+      <div>
+        <h3 style="font-size: 13.5px; font-weight: 700; margin: 0 0 4px 0;">Report &amp; Block Account</h3>
+        <p id="reportModalDesc" style="font-size: 12.5px; color: var(--ink-secondary); margin: 0 0 10px 0;">
+          Block this user permanently and submit a community safety flag to protect others.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Violation Category</label>
+          <select id="reportReasonSelect" class="form-select">
+            <option value="nudity">Explicit Nudity / Sexual Content</option>
+            <option value="violence">Violence / Threats</option>
+            <option value="impersonation">Stolen Photos / Impersonation</option>
+            <option value="spam">Commercial Bot / Crypto Spam</option>
+            <option value="harassment">Harassment / Abusive Behavior</option>
+            <option value="other">Other Violation</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="reportNotesInput" class="form-label">Additional Context (Optional)</label>
+          <textarea id="reportNotesInput" class="form-textarea" rows="2" placeholder="Describe the incident..."></textarea>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="btn btn-secondary" id="cancelReportBtn">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmReportBtn" style="background: var(--status-flagged-text, #ef4444); border-color: var(--status-flagged-text, #ef4444);">
+          Report &amp; Block
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE CAMERA VERIFICATION MODAL -->
+  <div id="cameraModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="cameraModalTitle">
+    <div class="modal-content" style="max-width: 460px;">
+      <div class="modal-header">
+        <h2 id="cameraModalTitle" class="modal-title">Live Camera Verification</h2>
+        <button type="button" class="modal-close-btn" id="closeCameraBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- STEP 1: EXPLANATION & REQUIREMENT NOTICE -->
+      <div id="cameraIntroStep" style="display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 13.5px; line-height: 1.5; color: #d1d5db;">
+          Live Camera Verification confirms your authentic presence with a live selfie and awards a green <strong>Live Verified</strong> badge on your profile.
+        </p>
+
+        <div style="background: var(--surface-input); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 14px; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--ink-secondary); letter-spacing: 0.04em;">
+            Hardware &amp; Access Requirements
+          </div>
+          <ul style="font-size: 13px; color: var(--ink-primary); padding-left: 18px; line-height: 1.5;">
+            <li>Requires a connected webcam or smartphone selfie camera.</li>
+            <li>Your browser will ask for one-time camera permission.</li>
+            <li>Photos of screens, photos of printouts, and avatars are rejected.</li>
+          </ul>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px;">
+          <button type="button" class="btn btn-secondary" id="cancelCameraIntroBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="startCameraBtn">Enable Camera &amp; Verify</button>
+        </div>
+      </div>
+
+      <!-- STEP 2: ACTIVE VIEWFINDER -->
+      <div id="cameraStreamStep" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 13px; color: var(--ink-secondary);">
+          Center your face in the viewfinder and click Capture.
+        </p>
+        <div class="camera-viewfinder">
+          <video id="liveCameraVideo" autoplay playsinline muted></video>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn btn-secondary" id="cancelCameraStreamBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="captureCameraBtn">Capture &amp; Verify</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: NO CAMERA DETECTED / PERMISSION DENIED -->
+      <div id="cameraErrorStep" class="hidden" style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="state-box" style="padding: 24px 16px;">
+          <div style="font-size: 28px;">📷</div>
+          <div class="state-title" id="cameraErrorTitle">No Camera Detected</div>
+          <div class="state-desc" id="cameraErrorDesc">
+            We could not find an available webcam or selfie camera on this device. You can continue exploring OpenDate and complete verification anytime from a smartphone or computer with a camera.
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button type="button" class="btn btn-secondary" id="retryCameraBtn">Try Again</button>
+          <button type="button" class="btn btn-primary" id="dismissCameraErrorBtn">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS (TECHNICAL SPECIFICATION) MODAL -->
+  <div id="howItWorksModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howItWorksTitle">
+    <div class="modal-content" style="max-width: 580px; max-height: 85vh; overflow-y: auto;">
+      <div class="modal-header">
+        <h2 id="howItWorksTitle" class="modal-title">How OpenDate Works: Technical Architecture</h2>
+        <button type="button" class="modal-close-btn" id="closeHowItWorksBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div style="font-size: 13px; line-height: 1.6; color: #d1d5db; display: flex; flex-direction: column; gap: 14px;">
+        <p>
+          OpenDate is powered by the <strong>Nostr network</strong> (Notes and Other Stuff Transmitted by Relays), an open, decentralized protocol designed for sovereign human communication. Instead of relying on central corporate databases, predatory monthly paywalls, or data brokers, OpenDate connects your browser directly to independent public Nostr relays across the globe.
+        </p>
+
+        <div style="background: var(--surface-input); border: 1px solid var(--border-default); border-radius: var(--radius-card); padding: 12px 14px; font-size: 12.5px; color: var(--ink-secondary);">
+          Learn more about the open Nostr protocol and its technical standards:
+          <div style="margin-top: 6px; display: flex; gap: 16px; flex-wrap: wrap;">
+            <a href="https://nostr.com" target="_blank" rel="noopener noreferrer" style="color: var(--ink-primary); font-weight: 600; text-decoration: underline;">
+              Visit nostr.com &rarr;
+            </a>
+            <a href="https://github.com/nostr-protocol/nips" target="_blank" rel="noopener noreferrer" style="color: var(--ink-primary); font-weight: 600; text-decoration: underline;">
+              Nostr Protocol Standards (NIPs) &rarr;
+            </a>
+          </div>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">1. Sovereign Identity (NIP-01 &amp; Password Managers)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            When you create a profile, an elliptic curve keypair (secp256k1) is generated silently in browser memory. Hidden password manager hooks prompt iCloud Keychain or Google Password Manager to back up your credentials with biometric protection (Face ID / Fingerprint). You own your account sovereignly with no phone number or email required.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">2. Location Privacy (4-Character Geohash &amp; 9-Cell Grid)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            Exact street coordinates and high-precision GPS are never published. The location engine resolves your city or ZIP into a coarse 4-character geohash box (~25 mi x 12 mi). Discovery queries calculate the center cell plus its 8 perimeter neighbors (9 cells total), eliminating edge-boundary misses while preserving physical safety.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">3. Decentralized Profiles (NIP-78 &amp; NIP-40)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            Profiles are published as parameterized replaceable application events (kind 30078). Every profile includes a 30-day auto-purge tag (NIP-40). Active daters renew this timestamp upon opening the app; inactive accounts are pruned from relay storage automatically.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">4. Private Encrypted Likes &amp; DMs (NIP-59 &amp; NIP-17)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            Likes and messages utilize 3-layer NIP-59 Gift Wrapping: Rumor (kind 14) is sealed (kind 13) with NIP-44 v2 encryption and wrapped (kind 1059) using a disposable burner key and randomized timestamp. Every message produces two wraps (one to partner, one to self-CC), synchronizing phones and desktops automatically from public relays.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">5. Anti-Bot Defense (NIP-13 Proof of Work)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            Outgoing likes and profile events run a lightweight 12-bit Proof-of-Work hash puzzle in non-blocking background loops. This takes ~1 second on mobile devices, keeping the platform smooth for humans while rendering mass commercial spam bots computationally uneconomical.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">6. Safe Media (Blossom Protocol BUD-01)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            All photos are loaded into an HTML5 canvas, scaled to 1080px, and re-encoded to JPEG (0.82), completely stripping all camera metadata and GPS coordinates before upload. Blobs are uploaded to Blossom media servers signed with kind 24242 Nostr authorization.
+          </p>
+        </div>
+
+        <div class="profile-subgroup">
+          <div class="profile-subgroup-title">7. Muting &amp; Trust (NIP-51 &amp; NIP-56)</div>
+          <p style="font-size: 12.5px; color: var(--ink-secondary);">
+            Blocked accounts are added to an encrypted personal mute list (kind 10000). Safety violations publish kind 1984 reports. Profiles with 3 or more community reports are hidden automatically.
+          </p>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+        <button type="button" class="btn btn-primary" id="dismissHowItWorksBtn">Close Architecture Guide</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DISCOVER FILTERS MODAL -->
+  <div id="filterModal" class="modal-overlay hidden" role="dialog" aria-labelledby="filterModalTitle" aria-modal="true">
+    <div class="modal-content" style="max-width: 520px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h2 id="filterModalTitle" class="modal-title">Filter Candidates</h2>
+        <button type="button" class="modal-close-btn" id="closeFilterModalBtn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <div id="filterModalBody" style="overflow-y: auto; padding-right: 4px; flex: 1;">
+        <!-- Populated dynamically by window.app.renderFilterModalContent() -->
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--border-default); margin-top: 4px;">
+        <button type="button" class="btn btn-secondary" onclick="window.app.resetDiscoverFilters()">Reset All</button>
+        <button type="button" class="btn btn-primary" onclick="window.app.applyDiscoverFiltersFromModal()">Apply Filters</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="appToast" class="toast-bar" role="status" aria-live="polite"></div>
+
+  <!-- Service Worker Registration for PWA Offline Support -->
+  <script>
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch((err) => {
+          console.warn('Service Worker registration skipped:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "OpenDate: Zero-Cost Decentralized Dating",
+  "short_name": "OpenDate",
+  "description": "Transparent, paywall-free, privacy-first decentralized dating on Nostr and Blossom.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0e10",
+  "theme_color": "#0d0e10",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
