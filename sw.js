@@ -3,7 +3,7 @@
  * Caches static core assets for instant boot and offline resilience.
  */
 
-const CACHE_NAME = 'opendate-v11';
+const CACHE_NAME = 'opendate-v12';
 const CORE_ASSETS = [
   './',
   './index.html',

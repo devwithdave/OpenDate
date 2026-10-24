@@ -103,6 +103,7 @@ class OpenDateApp {
     // 6. Load real candidates & incoming likes
     await this.loadCandidates();
     await this.updateLikesCount();
+    this.syncOwnProfileFromRelays();
 
     // 7. Render initial active view
     this.render();
@@ -653,6 +654,32 @@ class OpenDateApp {
     this.activeTab = tabKey;
     this.activeChatPartner = null;
     this.render();
+    if (tabKey === 'profile') {
+      this.syncOwnProfileFromRelays();
+    }
+  }
+
+  async syncOwnProfileFromRelays() {
+    if (!this.identity?.pubkey) return;
+    const relay = window.OpenDateRelay || window.RelayEngine;
+    if (!relay || !relay.fetchProfileByPubkey) return;
+
+    try {
+      const remoteProfile = await relay.fetchProfileByPubkey(this.identity.pubkey);
+      if (remoteProfile) {
+        const localUpdated = this.myProfile?.updated_at || 0;
+        const remoteUpdated = remoteProfile.updated_at || remoteProfile.created_at || 0;
+        if (!this.myProfile?.name || remoteUpdated >= localUpdated) {
+          this.myProfile = Object.assign({}, this.myProfile, remoteProfile);
+          this.myProfile.updated_at = remoteUpdated;
+          const db = window.OpenDateDB || window.DB;
+          if (db) await db.set('my_profile', this.myProfile);
+          if (this.activeTab === 'profile') this.renderProfileView();
+        }
+      }
+    } catch (e) {
+      console.warn('Own profile sync error:', e);
+    }
   }
 
   async updateLikesCount() {
@@ -709,6 +736,26 @@ class OpenDateApp {
           if (this.candidateMatchesFilters(profile)) {
             this.candidateQueue.push(profile);
             if (this.activeTab === 'discover') this.renderDiscoverView();
+          }
+        } else {
+          const existing = this.allCandidates[existingIdx];
+          const incomingTime = profile.updated_at || profile.created_at || 0;
+          const existingTime = existing.updated_at || existing.created_at || 0;
+          if (incomingTime >= existingTime) {
+            this.allCandidates[existingIdx] = profile;
+            const qIdx = this.candidateQueue.findIndex(c => c.pubkey === profile.pubkey);
+            const matches = this.candidateMatchesFilters(profile);
+            if (qIdx !== -1) {
+              if (matches) {
+                this.candidateQueue[qIdx] = profile;
+              } else {
+                this.candidateQueue.splice(qIdx, 1);
+              }
+              if (this.activeTab === 'discover') this.renderDiscoverView();
+            } else if (matches) {
+              this.candidateQueue.push(profile);
+              if (this.activeTab === 'discover') this.renderDiscoverView();
+            }
           }
         }
       });
@@ -1974,6 +2021,8 @@ class OpenDateApp {
       }
     }
 
+    p.updated_at = Math.floor(Date.now() / 1000);
+
     const db = window.OpenDateDB || window.DB;
     if (db) await db.set('my_profile', this.myProfile);
 
@@ -1982,7 +2031,7 @@ class OpenDateApp {
       await relay.publishProfile(this.myProfile, this.currentGeohash, this.identity.secretKey);
     }
 
-    this.showToast('Profile saved.');
+    this.showToast('Profile saved & published to relays.');
   }
 
   triggerPhotoUpload(slotIndex) {
@@ -2246,6 +2295,7 @@ class OpenDateApp {
             const savedProfile = await db.get('my_profile');
             if (savedProfile) this.myProfile = savedProfile;
           }
+          await this.syncOwnProfileFromRelays();
         } catch (err) {
           this.showToast('Login import failed: ' + err.message);
         }

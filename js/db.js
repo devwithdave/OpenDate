@@ -149,9 +149,26 @@ const OpenDateDB = {
       try {
         const tx = db.transaction('profiles', 'readwrite');
         const store = tx.objectStore('profiles');
-        const req = store.put(profile);
-        req.onsuccess = () => resolve(true);
-        req.onerror = () => resolve(false);
+        const getReq = store.get(profile.pubkey);
+        getReq.onsuccess = () => {
+          const existing = getReq.result;
+          if (existing) {
+            const inTime = profile.updated_at || profile.created_at || 0;
+            const exTime = existing.updated_at || existing.created_at || 0;
+            if (inTime < exTime) {
+              resolve(true);
+              return;
+            }
+          }
+          const putReq = store.put(profile);
+          putReq.onsuccess = () => resolve(true);
+          putReq.onerror = () => resolve(false);
+        };
+        getReq.onerror = () => {
+          const putReq = store.put(profile);
+          putReq.onsuccess = () => resolve(true);
+          putReq.onerror = () => resolve(false);
+        };
       } catch (e) { resolve(false); }
     });
   },

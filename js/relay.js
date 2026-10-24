@@ -5,7 +5,6 @@
  */
 
 const DEFAULT_RELAYS = [
-  'wss://relay.damus.io',
   'wss://nos.lol',
   'wss://relay.primal.net',
   'wss://nostr.mom'
@@ -104,7 +103,38 @@ const OpenDateRelay = {
   },
 
   /**
+   * Fetches the latest published profile for a given pubkey.
+   * @param {string} pubkey
+   * @returns {Promise<object|null>}
+   */
+  async fetchProfileByPubkey(pubkey) {
+    const pool = this.getPool();
+    if (!pool || !pubkey) return null;
+
+    try {
+      const filter = {
+        kinds: [30078],
+        authors: [pubkey],
+        '#d': ['opendate-v1-profile'],
+        limit: 1
+      };
+
+      const event = await pool.get(DEFAULT_RELAYS, filter);
+      if (!event) return null;
+
+      const profile = JSON.parse(event.content);
+      profile.pubkey = event.pubkey;
+      profile.created_at = event.created_at;
+      return profile;
+    } catch (err) {
+      console.warn('Error fetching profile from relays:', err);
+      return null;
+    }
+  },
+
+  /**
    * Publishes an event to the default relay pool.
+   * Resolves as soon as any relay confirms receipt.
    * @param {object} finalizedEvent
    * @returns {Promise<boolean>}
    */
@@ -117,7 +147,11 @@ const OpenDateRelay = {
 
     try {
       const pubs = pool.publish(DEFAULT_RELAYS, finalizedEvent);
-      await Promise.race(pubs);
+      if (typeof Promise.any === 'function') {
+        await Promise.any(pubs);
+      } else {
+        await Promise.race(pubs);
+      }
       return true;
     } catch (err) {
       console.warn('Publish completed with partial relay acknowledgements.');
@@ -136,6 +170,8 @@ const OpenDateRelay = {
     const NT = window.NostrTools;
     const now = Math.floor(Date.now() / 1000);
     const expiration = now + (30 * 24 * 60 * 60);
+
+    profileData.updated_at = now;
 
     const tags = [
       ['d', 'opendate-v1-profile'],
