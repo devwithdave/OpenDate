@@ -877,6 +877,74 @@ class OpenDateApp {
     const currentPhotoIdx = this.currentCandidatePhotoIndex;
     const heroPhoto = photoCount > 0 ? validPhotos[currentPhotoIdx] : null;
 
+    const formatDetailValue = (val) => {
+      if (val === null || val === undefined) return null;
+      if (typeof val === 'string') {
+        const s = val.trim();
+        if (!s || s.toLowerCase() === 'prefer not to say') return null;
+        return s;
+      }
+      if (Array.isArray(val)) {
+        const filtered = val
+          .map(v => String(v || '').trim())
+          .filter(v => v.length > 0 && v.toLowerCase() !== 'prefer not to say');
+        if (filtered.length === 0) return null;
+        return filtered.join(', ');
+      }
+      return String(val);
+    };
+
+    const details = [];
+
+    // Basic Information
+    const gender = formatDetailValue(c.gender);
+    if (gender) details.push({ label: 'Gender', value: gender });
+
+    const sexuality = formatDetailValue(c.sexuality);
+    if (sexuality) details.push({ label: 'Sexuality', value: sexuality });
+
+    const work = formatDetailValue(c.jobTitle);
+    if (work) details.push({ label: 'Work', value: work });
+
+    const height = formatDetailValue(c.height);
+    if (height) details.push({ label: 'Height', value: height });
+
+    const ethnicity = formatDetailValue(c.ethnicity);
+    if (ethnicity) details.push({ label: 'Ethnicity', value: ethnicity });
+
+    const religion = formatDetailValue(c.religion);
+    if (religion) details.push({ label: 'Faith', value: religion });
+
+    const intents = formatDetailValue(c.intents);
+    if (intents) details.push({ label: 'Intent', value: intents });
+
+    const children = formatDetailValue(c.children);
+    if (children) details.push({ label: 'Kids', value: children });
+
+    const pets = formatDetailValue(c.pets);
+    if (pets) details.push({ label: 'Pets', value: pets });
+
+    // Lifestyle & Habits
+    const drive = formatDetailValue(c.drive);
+    if (drive) details.push({ label: 'Transit', value: drive });
+
+    const smoking = formatDetailValue(c.smoking);
+    if (smoking) details.push({ label: 'Smoking', value: smoking });
+
+    const marijuana = formatDetailValue(c.marijuana);
+    if (marijuana) details.push({ label: 'Marijuana', value: marijuana });
+
+    const alcohol = formatDetailValue(c.alcohol);
+    if (alcohol) details.push({ label: 'Alcohol', value: alcohol });
+
+    const drugs = formatDetailValue(c.drugs);
+    if (drugs) details.push({ label: 'Drugs', value: drugs });
+
+    const filteredInterests = (c.interests || []).filter(i => {
+      if (!i) return false;
+      return String(i).trim().toLowerCase() !== 'prefer not to say';
+    });
+
     this.cacheDiscoveryToken(c.pubkey);
 
     container.innerHTML = `
@@ -920,23 +988,27 @@ class OpenDateApp {
           `}
         </div>
 
-        <div class="bio-paragraph">${c.bio || 'No written bio provided.'}</div>
+        ${details.length > 0 ? `
+          <div class="profile-details-list">
+            ${details.map(d => `
+              <div class="profile-detail-row">
+                <span class="profile-detail-label">${d.label}</span>
+                <span class="profile-detail-value">${d.value}</span>
+              </div>
+            `).join('')}
+          </div>
+        ` : ''}
 
-        <div class="attributes-grid">
-          ${c.jobTitle ? `<div class="attribute-item"><div class="attribute-label">Work</div><div class="attribute-value">${c.jobTitle}</div></div>` : ''}
-          ${c.height ? `<div class="attribute-item"><div class="attribute-label">Height</div><div class="attribute-value">${c.height}</div></div>` : ''}
-          ${c.religion ? `<div class="attribute-item"><div class="attribute-label">Faith</div><div class="attribute-value">${c.religion}</div></div>` : ''}
-          ${c.children ? `<div class="attribute-item"><div class="attribute-label">Kids</div><div class="attribute-value">${c.children}</div></div>` : ''}
-          ${c.drive ? `<div class="attribute-item"><div class="attribute-label">Transit</div><div class="attribute-value">${c.drive}</div></div>` : ''}
-        </div>
+        ${c.bio ? `<div class="bio-paragraph">${c.bio}</div>` : ''}
 
-        <div class="tags-cluster">
-          ${(c.intents || []).map(i => `<span class="pill-tag">${i}</span>`).join('')}
-          ${(c.interests || []).map(i => {
-            const isShared = sharedSet.has(i);
-            return `<span class="pill-tag ${isShared ? 'shared-interest' : ''}">${isShared ? '⭐ ' : ''}${i}</span>`;
-          }).join('')}
-        </div>
+        ${filteredInterests.length > 0 ? `
+          <div class="tags-cluster">
+            ${filteredInterests.map(i => {
+              const isShared = sharedSet.has(i);
+              return `<span class="pill-tag ${isShared ? 'shared-interest' : ''}">${isShared ? '⭐ ' : ''}${i}</span>`;
+            }).join('')}
+          </div>
+        ` : ''}
 
         ${(c.prompts || []).map((prompt) => `
           <div class="icebreaker-card" style="cursor: pointer;" onclick="window.app.openLikeModalForTarget(window.app.candidateQueue[0], 'Prompt: ${prompt.q.replace(/'/g, "\\'")}')">

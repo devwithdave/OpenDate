@@ -364,6 +364,46 @@ textarea:focus-visible {
   line-height: 1.55;
 }
 
+/* Profile Details List (Basic info & lifestyle) */
+.profile-details-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-input);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.profile-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  gap: 12px;
+}
+
+.profile-detail-row:last-child {
+  border-bottom: none;
+}
+
+.profile-detail-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+  flex-shrink: 0;
+}
+
+.profile-detail-value {
+  font-size: 13px;
+  color: var(--ink-primary);
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
 .attributes-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
