@@ -40,8 +40,8 @@
     <header class="top-nav">
       <div class="brand-group">
         <span class="brand-logo">OpenDate</span>
-        <button type="button" class="location-pill-btn" id="locationBtn" aria-label="Current Location">
-          <span id="locationLabel">Locating...</span>
+        <button type="button" class="location-pill-btn" id="locationBtn" aria-label="Change Discover Search Region">
+          <span id="locationLabel">Search: Locating...</span>
         </button>
       </div>
 
@@ -117,11 +117,11 @@
   <div id="locationModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="locModalTitle">
     <div class="modal-content">
       <div class="modal-header">
-        <h2 id="locModalTitle" class="modal-title">Set Dating Region</h2>
+        <h2 id="locModalTitle" class="modal-title">Set Discover Search Region</h2>
         <button type="button" class="modal-close-btn" id="closeLocModal" aria-label="Close dialog">&times;</button>
       </div>
       <p style="font-size: 13px; color: var(--ink-secondary);">
-        Discovery uses a coarse 25-mile box. Your exact street address is never published.
+        Choose where you want to discover nearby profiles. Your profile's home location is set separately in your Profile tab.
       </p>
       <div class="form-group">
         <label for="locInput" class="form-label">City, State or 5-Digit US ZIP</label>
@@ -129,7 +129,7 @@
       </div>
       <div style="display: flex; gap: 8px;">
         <button type="button" class="btn btn-secondary" style="flex: 1;" id="gpsBtn">Use GPS Coords</button>
-        <button type="button" class="btn btn-primary" style="flex: 1;" id="saveLocBtn">Search Region</button>
+        <button type="button" class="btn btn-primary" style="flex: 1;" id="saveLocBtn">Update Search Region</button>
       </div>
     </div>
   </div>

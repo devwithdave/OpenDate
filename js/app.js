@@ -123,6 +123,8 @@ class OpenDateApp {
     return {
       name: '',
       age: 26,
+      locationLabel: this.locationLabel || 'Charlottesville, VA',
+      geohash: this.currentGeohash || 'dqb8',
       ageMin: 21,
       ageMax: 36,
       gender: 'Woman',
@@ -165,6 +167,11 @@ class OpenDateApp {
           if (db) {
             await db.set('user_geohash', this.currentGeohash);
             await db.set('user_location_label', this.locationLabel);
+          }
+          if (this.myProfile && !this.myProfile.locationLabel) {
+            this.myProfile.locationLabel = ipLoc.label;
+            this.myProfile.geohash = ipLoc.geohash;
+            if (db) await db.set('my_profile', this.myProfile);
           }
           await this.loadCandidates();
           if (this.activeTab === 'discover') this.renderDiscoverView();
@@ -234,7 +241,7 @@ class OpenDateApp {
 
   updateLocationBadge() {
     const el = document.getElementById('locationLabel');
-    if (el) el.textContent = `Near ${this.locationLabel}`;
+    if (el) el.textContent = `Search: ${this.locationLabel}`;
   }
 
   async checkLandingModal() {
@@ -300,7 +307,7 @@ class OpenDateApp {
             }
             this.updateLocationBadge();
             if (locModal) locModal.classList.add('hidden');
-            this.showToast(`Updated region to ${result.label}`);
+            this.showToast(`Updated search region to ${result.label}`);
             await this.loadCandidates();
             if (this.activeTab === 'discover') this.renderDiscoverView();
           } else {
@@ -330,7 +337,7 @@ class OpenDateApp {
           }
           this.updateLocationBadge();
           if (locModal) locModal.classList.add('hidden');
-          this.showToast('Updated location from device coordinates.');
+          this.showToast('Updated search region from device coordinates.');
           await this.loadCandidates();
           if (this.activeTab === 'discover') this.renderDiscoverView();
         } catch (err) {
@@ -634,7 +641,7 @@ class OpenDateApp {
 
           const relay = window.OpenDateRelay || window.RelayEngine;
           if (relay && this.identity?.secretKey) {
-            await relay.publishProfile(this.myProfile, this.currentGeohash, this.identity.secretKey);
+            await relay.publishProfile(this.myProfile, this.myProfile.geohash || this.currentGeohash, this.identity.secretKey);
           }
 
           document.getElementById('cameraModal')?.classList.add('hidden');
@@ -1922,6 +1929,19 @@ class OpenDateApp {
             <input type="text" id="profName" class="form-input" value="${p.name || ''}" placeholder="Your first name" required />
           </div>
 
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+              <label for="profLocation" class="form-label" style="margin: 0;">Profile Home Location</label>
+              <button type="button" class="btn btn-secondary" style="font-size: 11px; min-height: 24px; padding: 2px 8px;" onclick="window.app.detectProfileLocation()">
+                Use Device GPS
+              </button>
+            </div>
+            <input type="text" id="profLocation" class="form-input" value="${p.locationLabel || ''}" placeholder="e.g. Richmond, VA or 23220" />
+            <span style="font-size: 11.5px; color: var(--ink-secondary); display: block; margin-top: 4px;">
+              Where your profile lives. Independent of your Discover search region.
+            </span>
+          </div>
+
           <div style="display: flex; gap: 10px;">
             <div class="form-group" style="flex: 1;">
               <label for="profAge" class="form-label">Your Age</label>
@@ -2137,6 +2157,28 @@ class OpenDateApp {
       }
     }
 
+    const locInput = document.getElementById('profLocation');
+    if (locInput) {
+      const enteredLoc = locInput.value.trim();
+      if (enteredLoc && enteredLoc !== p.locationLabel) {
+        const geo = window.OpenDateGeo || window.Geo;
+        if (geo) {
+          const res = await geo.searchLocation(enteredLoc);
+          if (res) {
+            p.locationLabel = res.label;
+            p.geohash = res.geohash;
+          } else {
+            p.locationLabel = enteredLoc;
+          }
+        } else {
+          p.locationLabel = enteredLoc;
+        }
+      } else if (!p.geohash) {
+        p.geohash = this.currentGeohash || 'dqb8';
+        p.locationLabel = p.locationLabel || this.locationLabel || 'Charlottesville, VA';
+      }
+    }
+
     p.updated_at = Math.floor(Date.now() / 1000);
 
     const db = window.OpenDateDB || window.DB;
@@ -2144,10 +2186,36 @@ class OpenDateApp {
 
     const relay = window.OpenDateRelay || window.RelayEngine;
     if (relay && this.identity && this.identity.secretKey) {
-      await relay.publishProfile(this.myProfile, this.currentGeohash, this.identity.secretKey);
+      await relay.publishProfile(this.myProfile, p.geohash || this.currentGeohash, this.identity.secretKey);
     }
 
     this.showToast('Profile saved & published to relays.');
+  }
+
+  async detectProfileLocation() {
+    const geo = window.OpenDateGeo || window.Geo;
+    if (!geo) return;
+    const input = document.getElementById('profLocation');
+    this.showToast('Detecting location...');
+    try {
+      let loc = null;
+      if (navigator.geolocation) {
+        loc = await geo.getDeviceLocation();
+      }
+      if (!loc && geo.getIpLocation) {
+        loc = await geo.getIpLocation();
+      }
+      if (loc) {
+        if (input) input.value = loc.label;
+        if (this.myProfile) {
+          this.myProfile.locationLabel = loc.label;
+          this.myProfile.geohash = loc.geohash;
+        }
+        this.showToast(`Set home location to ${loc.label}`);
+      }
+    } catch (e) {
+      this.showToast('Could not detect device location. Please enter city or ZIP.');
+    }
   }
 
   triggerPhotoUpload(slotIndex) {
