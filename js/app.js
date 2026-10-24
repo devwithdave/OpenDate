@@ -14,6 +14,7 @@ class OpenDateApp {
     this.activeTab = 'discover';
     this.candidateQueue = [];
     this.allCandidates = [];
+    this.currentCandidatePhotoIndex = 0;
     this.discoverFilters = this.getDefaultFilters();
     this.activeLikeCandidate = null;
     this.activeLikeTarget = 'Profile';
@@ -861,7 +862,13 @@ class OpenDateApp {
     const dealbreakers = window.OpenDateDealbreakers || window.DealbreakerEngine;
     const compat = dealbreakers ? dealbreakers.evaluateMutualCompatibility(this.myProfile, c, this.userPreferences) : { sharedInterests: [] };
     const sharedSet = new Set(compat.sharedInterests || []);
-    const heroPhoto = (c.photos && c.photos.length > 0) ? c.photos[0] : null;
+    const validPhotos = (c.photos || []).filter(p => typeof p === 'string' && p.trim().length > 0);
+    const photoCount = validPhotos.length;
+    if (this.currentCandidatePhotoIndex >= photoCount) {
+      this.currentCandidatePhotoIndex = 0;
+    }
+    const currentPhotoIdx = this.currentCandidatePhotoIndex;
+    const heroPhoto = photoCount > 0 ? validPhotos[currentPhotoIdx] : null;
 
     this.cacheDiscoveryToken(c.pubkey);
 
@@ -881,9 +888,23 @@ class OpenDateApp {
           </div>
         </div>
 
-        <div class="photo-slot">
+        <div class="photo-slot" id="candidatePhotoSlot" onclick="window.app.handlePhotoSlotClick(event)">
           ${heroPhoto ? `
-            <img src="${heroPhoto}" alt="${c.name}" />
+            <img id="discoverCandidateImg" src="${heroPhoto}" alt="${c.name || 'Candidate'}" />
+            ${photoCount > 1 ? `
+              <div class="photo-progress-bars">
+                ${validPhotos.map((_, i) => `
+                  <div class="photo-bar-segment ${i === currentPhotoIdx ? 'active' : ''}"></div>
+                `).join('')}
+              </div>
+              <button type="button" class="photo-nav-btn photo-nav-prev" onclick="window.app.prevPhoto(event)" aria-label="Previous photo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+              </button>
+              <button type="button" class="photo-nav-btn photo-nav-next" onclick="window.app.nextPhoto(event)" aria-label="Next photo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+              </button>
+              <span class="photo-counter-badge" id="photoCounterBadge">${currentPhotoIdx + 1}/${photoCount}</span>
+            ` : ''}
           ` : `
             <div class="photo-placeholder">
               <span style="font-size: 26px;">📷</span>
@@ -931,7 +952,13 @@ class OpenDateApp {
       </article>
     `;
 
+    const slotEl = document.getElementById('candidatePhotoSlot');
+    if (slotEl) {
+      this.attachPhotoTouchHandlers(slotEl);
+    }
+
     document.getElementById('passBtn')?.addEventListener('click', () => {
+      this.currentCandidatePhotoIndex = 0;
       const passed = this.candidateQueue.shift();
       if (passed && this.allCandidates) {
         this.allCandidates = this.allCandidates.filter(x => x.pubkey !== passed.pubkey);
@@ -942,6 +969,93 @@ class OpenDateApp {
     document.getElementById('likeBtn')?.addEventListener('click', () => {
       this.openLikeModalForTarget(c, 'Profile');
     });
+  }
+
+  nextPhoto(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const c = this.candidateQueue[0];
+    if (!c) return;
+    const validPhotos = (c.photos || []).filter(p => typeof p === 'string' && p.trim().length > 0);
+    if (validPhotos.length <= 1) return;
+    this.currentCandidatePhotoIndex = (this.currentCandidatePhotoIndex + 1) % validPhotos.length;
+    this.updateDiscoverPhoto(validPhotos);
+  }
+
+  prevPhoto(event) {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    const c = this.candidateQueue[0];
+    if (!c) return;
+    const validPhotos = (c.photos || []).filter(p => typeof p === 'string' && p.trim().length > 0);
+    if (validPhotos.length <= 1) return;
+    this.currentCandidatePhotoIndex = (this.currentCandidatePhotoIndex - 1 + validPhotos.length) % validPhotos.length;
+    this.updateDiscoverPhoto(validPhotos);
+  }
+
+  updateDiscoverPhoto(validPhotos) {
+    const c = this.candidateQueue[0];
+    if (!c) return;
+    const photos = validPhotos || (c.photos || []).filter(p => typeof p === 'string' && p.trim().length > 0);
+    if (photos.length === 0) return;
+    const idx = Math.min(this.currentCandidatePhotoIndex, photos.length - 1);
+    const img = document.getElementById('discoverCandidateImg');
+    if (img) img.src = photos[idx];
+
+    const bars = document.querySelectorAll('.photo-bar-segment');
+    bars.forEach((bar, i) => {
+      bar.classList.toggle('active', i === idx);
+    });
+
+    const badge = document.getElementById('photoCounterBadge');
+    if (badge) badge.textContent = `${idx + 1}/${photos.length}`;
+  }
+
+  handlePhotoSlotClick(e) {
+    if (e.target.closest('.photo-nav-btn')) return;
+    const c = this.candidateQueue[0];
+    if (!c) return;
+    const validPhotos = (c.photos || []).filter(p => typeof p === 'string' && p.trim().length > 0);
+    if (validPhotos.length <= 1) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    if (clickX < rect.width * 0.4) {
+      this.prevPhoto(e);
+    } else {
+      this.nextPhoto(e);
+    }
+  }
+
+  attachPhotoTouchHandlers(slotEl) {
+    if (!slotEl) return;
+    let startX = 0;
+    let startY = 0;
+    slotEl.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches.length === 1) {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    slotEl.addEventListener('touchend', (e) => {
+      if (!e.changedTouches || e.changedTouches.length === 0) return;
+      const endX = e.changedTouches[0].clientX;
+      const endY = e.changedTouches[0].clientY;
+      const deltaX = endX - startX;
+      const deltaY = endY - startY;
+      if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (deltaX < 0) {
+          this.nextPhoto();
+        } else {
+          this.prevPhoto();
+        }
+      }
+    }, { passive: true });
   }
 
   getDefaultFilters() {
@@ -1306,10 +1420,12 @@ class OpenDateApp {
       }
 
       this.showToast(`Sent like and intro note to ${candidate.name}.`);
+      this.currentCandidatePhotoIndex = 0;
       this.candidateQueue.shift();
       this.renderDiscoverView();
     } catch (err) {
       console.warn('Like transmission warning:', err);
+      this.currentCandidatePhotoIndex = 0;
       this.candidateQueue.shift();
       this.renderDiscoverView();
     }
