@@ -39,23 +39,8 @@ class OpenDateApp {
     // 2. Set immediate location badge
     this.updateLocationBadge();
 
-    // 3. Load dynamic taxonomies from options.json so edits apply immediately
-    try {
-      const optRes = await fetch('options.json?_t=' + Date.now(), { cache: 'no-store' });
-      if (optRes.ok) {
-        const dynamicOptions = await optRes.json();
-        if (dynamicOptions && dynamicOptions.genders) {
-          this.options = dynamicOptions;
-          window.OPENDATE_OPTIONS = dynamicOptions;
-        }
-      }
-    } catch (e) {
-      // Running offline or via file:// protocol where fetch is restricted
-    }
-
-    if (!this.options || !this.options.genders) {
-      this.options = window.OPENDATE_OPTIONS || {};
-    }
+    // 3. Load dynamic taxonomies from options.js
+    this.options = window.OPENDATE_OPTIONS || {};
 
     // 4. Initialize local database
     const db = window.OpenDateDB || window.DB;

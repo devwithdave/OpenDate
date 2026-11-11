@@ -3,7 +3,7 @@
  * Caches static core assets for instant boot and offline resilience.
  */
 
-const CACHE_NAME = 'opendate-v16';
+const CACHE_NAME = 'opendate-v17';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -15,7 +15,6 @@ const CORE_ASSETS = [
   './nostr.bundle.js',
   './qrcode.min.js',
   './options.js',
-  './options.json',
   './js/db.js',
   './js/crypto.js',
   './js/geo.js',
@@ -56,7 +55,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network-first for options config so user taxonomy changes update immediately on refresh
-  if (url.includes('options.json') || url.includes('options.js')) {
+  if (url.includes('options.js')) {
     event.respondWith(
       fetch(event.request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
